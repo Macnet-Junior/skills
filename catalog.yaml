@@ -168,4 +168,7 @@ skills:
     product: all
     path: skills/docker-destructive-guardrails
     version: 0.1.0
+  - id: docker-desktop-preflight
+    path: skills/docker-desktop-preflight
+    version: 0.1.0
     status: stable

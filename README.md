@@ -13,6 +13,10 @@ The installation steps below are self-contained; the catalog-generated inventory
 
 ## Skills
 
+- **docker-project-foundations** — Guidance for initializing and structuring a Dockerized project
+- **docker-compose-patterns** — Patterns for robust, maintainable Docker Compose configurations
+- **docker-build-strategies** — Strategies for efficient, secure, and optimized Docker image builds
+- **docker-desktop-preflight** — Detect and diagnose Docker Desktop configuration and governance blockers (resource limits, Enhanced Container Isolation, Registry Access Management, enforced sign-in, file sharing, proxies, Kubernetes) before/while running container actions — works with governance, never around it.
 Skills are grouped by the Docker product they cover. The table is generated from [`catalog.yaml`](catalog.yaml) by `task catalog`; edit the catalog, not the table.
 
 <!-- catalog-start -->
@@ -80,10 +84,11 @@ codex plugin add docker-skills@docker
 ```
 Start a new Codex session after installing. See [Codex skills docs](https://developers.openai.com/codex/skills)
 
-**GitHub Copilot CLI** (run in the Copilot CLI prompt):
-```text
-/plugin marketplace add docker/skills
-/plugin install docker-skills@docker
+# Or copy skills manually:
+cp -r skills/docker-project-foundations ~/.agents/skills/
+cp -r skills/docker-compose-patterns ~/.agents/skills/
+cp -r skills/docker-build-strategies ~/.agents/skills/
+cp -r skills/docker-desktop-preflight ~/.agents/skills/
 ```
 See [Copilot CLI plugins docs](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/plugins-finding-installing)
 
