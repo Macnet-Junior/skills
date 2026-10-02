@@ -137,6 +137,7 @@ Always configure the final image to run as a non-root user.
 
 - For first-time Docker project scaffolding and deciding which files to create, use `docker-project-foundations`.
 - For service dependencies, health checks, overrides, networks, and volume patterns, use `docker-compose-patterns`.
+- For destructive Docker CLI commands (`docker system prune`, `docker rm -f`, image/network/builder pruning) and a cross-product index of destructive-command guardrails, use `docker-destructive-guardrails`.
 
 ## References
 
@@ -154,8 +155,9 @@ Always configure the final image to run as a non-root user.
 
 - **`scripts/verify-build.sh`** — Builds the image, reports size and configured user.
   ```bash
-  bash scripts/verify-build.sh [IMAGE_NAME]
+  bash scripts/verify-build.sh [--help] [IMAGE_NAME]
   ```
+  Exit status is `0` when all Docker commands succeed or help is requested, the failing Docker command's non-zero status when verification fails, and `2` for invalid arguments.
 
 ## Checks
 

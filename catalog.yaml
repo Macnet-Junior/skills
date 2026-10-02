@@ -1,15 +1,174 @@
+# Skill registry: the single source of truth for which skills exist, which product
+# family each belongs to, whether it is stable or experimental, and the canonical
+# description shared by distribution manifests.
+#
+# `task catalog` renders the README skill table and installation inventory,
+# the evals/README.md runbook table, skills.sh.json, and plugin manifest
+# versions and descriptions from this file; `task validate` fails when they drift.
+# `version` is the distribution version: its v-prefixed release tag must match,
+# and `task catalog` renders it into every versioned plugin manifest.
 schema: v1
 name: docker-skills
+version: 0.3.0
+description: Docker-authored knowledge skills for AI coding agents across Dockerfiles, Compose, Docker Agent, Docker Sandboxes, and safe Docker workflows.
+
+distributions:
+  - id: claude-code-marketplace
+    category: native-marketplaces
+    name: Claude Code marketplace
+    description: Client-managed plugin installation from Docker's marketplace.
+    docs: https://docs.docker.com/ai/skills/install/#claude-code
+    role: installer
+    manifests:
+      - .claude-plugin/marketplace.json
+      - .claude-plugin/plugin.json
+  - id: github-copilot-marketplace
+    category: native-marketplaces
+    name: GitHub Copilot CLI marketplace
+    description: Client-managed plugin installation from Docker's marketplace.
+    docs: https://docs.docker.com/ai/skills/install/#github-copilot-cli
+    role: installer
+    manifests:
+      - .github/plugin/marketplace.json
+      - .github/plugin/plugin.json
+  - id: cursor-marketplace
+    category: native-marketplaces
+    name: Cursor marketplace
+    description: Client-managed installation through Cursor's documented plugin interface.
+    docs: https://docs.docker.com/ai/skills/install/#cursor
+    role: installer
+    manifests:
+      - .cursor-plugin/marketplace.json
+      - .cursor-plugin/plugin.json
+  - id: codex-marketplace
+    category: native-marketplaces
+    name: Codex marketplace
+    description: Client-managed installation where the Codex marketplace is available.
+    docs: https://docs.docker.com/ai/skills/install/#codex
+    role: installer
+    manifests:
+      - .agents/plugins/marketplace.json
+      - .codex-plugin/plugin.json
+  - id: gemini-cli-extension
+    category: extensions
+    name: Gemini CLI extension
+    description: Repository-backed extension installation managed by Gemini CLI.
+    docs: https://docs.docker.com/ai/skills/install/#gemini-cli
+    role: installer
+    manifests:
+      - gemini-extension.json
+  - id: skills-cli
+    category: skills-cli
+    name: skills CLI
+    description: Cross-client project or user installation with explicit skill selection.
+    docs: https://docs.docker.com/ai/skills/install/#skills-cli
+    role: installer
+    manifests:
+      - skills.sh.json
+  - id: docker-sandboxes
+    category: docker-products
+    name: Docker Sandboxes
+    description: Product-native installation into the shared sandbox skill store.
+    docs: https://docs.docker.com/ai/skills/install/#docker-sandboxes
+    role: installer
+    status: experimental
+    manifests: []
+  - id: docker-agent
+    category: docker-products
+    name: Docker Agent
+    description: Consumer of skills installed in supported project or user paths.
+    docs: https://docs.docker.com/ai/skills/install/#docker-agent
+    role: consumer
+    manifests: []
+  - id: git-manual
+    category: sources
+    name: Git clone or manual copy
+    description: Auditable fallback when no managed installer fits the client.
+    docs: https://docs.docker.com/ai/skills/install/#git-clone-or-manual-copy
+    role: source
+    manifests: []
+
+products:
+  - id: docker-build
+    name: Dockerfile & Build
+    description: Containerize a project and write, optimize, and harden Dockerfiles and images.
+    docs: https://docs.docker.com/build/
+    repo: https://github.com/docker/buildx
+  - id: docker-compose
+    name: Docker Compose
+    description: Wire multi-container stacks with robust, maintainable Compose configurations.
+    docs: https://docs.docker.com/compose/
+    repo: https://github.com/docker/compose
+  - id: docker-sandboxes
+    name: Docker Sandboxes
+    description: Run AI coding agents in isolated microVMs with the sbx CLI, including network policy, credentials, environments, and kits.
+    docs: https://docs.docker.com/ai/sandboxes/
+    repo: https://github.com/docker/sandboxes
+  - id: docker-agent
+    name: Docker Agent
+    description: Author, run, and ship AI agents with Docker Agent, from agent.yaml to serving and distribution.
+    docs: https://docs.docker.com/ai/docker-agent/
+    repo: https://github.com/docker/docker-agent
+  - id: all
+    name: Cross-Product
+    description: Guardrails and policies that apply across every Docker skill product.
+
 skills:
   - id: docker-project-foundations
+    product: docker-build
     path: skills/docker-project-foundations
-    version: 0.1.0
-  - id: docker-compose-patterns
-    path: skills/docker-compose-patterns
-    version: 0.1.0
+    version: 0.2.0
+    status: stable
   - id: docker-build-strategies
+    product: docker-build
     path: skills/docker-build-strategies
+    version: 0.1.0
+    status: stable
+  - id: docker-compose-patterns
+    product: docker-compose
+    path: skills/docker-compose-patterns
+    version: 0.1.1
+    status: stable
+  - id: docker-sandboxes-lifecycle
+    product: docker-sandboxes
+    path: skills/docker-sandboxes-lifecycle
+    version: 0.1.0
+    status: stable
+  - id: docker-sandboxes-network-credentials
+    product: docker-sandboxes
+    path: skills/docker-sandboxes-network-credentials
+    version: 0.1.0
+    status: stable
+  - id: docker-sandboxes-env
+    product: docker-sandboxes
+    path: skills/docker-sandboxes-env
+    version: 0.1.0
+    status: experimental
+  - id: docker-sandboxes-kits
+    product: docker-sandboxes
+    path: skills/docker-sandboxes-kits
+    version: 0.1.0
+    status: experimental
+  - id: docker-agent-config
+    product: docker-agent
+    path: skills/docker-agent-config
+    version: 0.1.0
+    status: stable
+  - id: docker-agent-run
+    product: docker-agent
+    path: skills/docker-agent-run
+    version: 0.1.0
+    status: stable
+  - id: docker-agent-deploy
+    product: docker-agent
+    path: skills/docker-agent-deploy
+    version: 0.1.0
+    status: stable
+  - id: docker-destructive-guardrails
+    product: all
+    path: skills/docker-destructive-guardrails
     version: 0.1.0
   - id: docker-desktop-preflight
     path: skills/docker-desktop-preflight
     version: 0.1.0
+    status: stable

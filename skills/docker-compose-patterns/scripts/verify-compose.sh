@@ -3,10 +3,19 @@
 # Usage: bash scripts/verify-compose.sh [--help]
 set -euo pipefail
 
-if [[ "${1:-}" == "--help" ]]; then
-    echo "Usage: bash scripts/verify-compose.sh"
-    echo "Validates compose.yaml with docker compose config."
+usage() {
+    echo "Usage: bash scripts/verify-compose.sh [--help]"
+    echo "Validates compose.yaml with docker compose config --quiet (no rendered configuration)."
+}
+
+if [[ "${1:-}" == "--help" && $# == 1 ]]; then
+    usage
     exit 0
 fi
 
-docker compose config
+if (( $# != 0 )); then
+    usage >&2
+    exit 2
+fi
+
+docker compose config --quiet

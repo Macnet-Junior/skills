@@ -8,6 +8,19 @@ import sys
 
 import yaml
 
+from catalog import overview_skill, stale_files, validate_catalog
+from compose_assets import validate_compose_assets
+from content_risk import validate_content_risk
+from frontmatter import validate_frontmatter
+from manifests import (
+    collect_versions,
+    validate_codex_marketplace,
+    validate_descriptions,
+    validate_skills_index,
+    validate_versions,
+)
+from repository_hygiene import validate_codeowners, validate_discovery_links, validate_skill_line_limits
+
 errors = 0
 skill_defs = {}
 
@@ -27,7 +40,30 @@ except Exception as e:
     error("catalog.yaml is not valid YAML: " + str(e))
     sys.exit(1)
 
+for message in validate_catalog(catalog):
+    error(message)
+if errors:
+    print("\n" + str(errors) + " error(s) found in catalog.yaml; fix them before the remaining checks can run")
+    sys.exit(1)
+print("  OK: every skill belongs to exactly one declared product")
+
 catalog_paths = [s["path"] for s in catalog["skills"]]
+
+# --- 1a. Every skills/ directory has exactly one catalog entry and vice versa ---
+print("==> Checking skills/ directory against catalog.yaml")
+skill_dirs = sorted(
+    "skills/" + name
+    for name in os.listdir("skills")
+    if os.path.isdir(os.path.join("skills", name)) and not name.startswith(".")
+)
+for skill_dir in skill_dirs:
+    if skill_dir not in catalog_paths:
+        error(skill_dir + " has no entry in catalog.yaml")
+for path in catalog_paths:
+    if not os.path.isdir(path):
+        error("catalog.yaml path " + path + " is not a directory")
+if not errors:
+    print("  OK: " + str(len(skill_dirs)) + " skill directories match " + str(len(catalog_paths)) + " catalog entries")
 
 # --- 2. Validate skill directories and skill.yaml files ---
 print("==> Validating skill directories and skill.yaml files")
@@ -98,23 +134,52 @@ for skill in catalog["skills"]:
     if not os.path.isfile(skill_md):
         continue
     print("  Checking frontmatter: " + skill_md)
-    with open(skill_md) as f:
-        lines = f.readlines()
-    if not lines or lines[0].rstrip() != "---":
-        error(skill_md + " does not start with '---'")
-        continue
-    # Extract only frontmatter lines (between first and second ---)
-    fm_lines = []
-    for line in lines[1:]:
-        if line.rstrip() == "---":
-            break
-        fm_lines.append(line)
-    has_name = any(l.startswith("name:") for l in fm_lines)
-    has_desc = any(l.startswith("description:") for l in fm_lines)
-    if not has_name:
-        error(skill_md + " missing 'name:' in frontmatter")
-    if not has_desc:
-        error(skill_md + " missing 'description:' in frontmatter")
+    with open(skill_md, encoding="utf-8") as f:
+        content = f.read()
+    for message in validate_frontmatter(content, os.path.basename(path)):
+        error(skill_md + ": " + message)
+    frontmatter_name = None
+    if content.startswith("---"):
+        try:
+            frontmatter = yaml.safe_load(content.split("---", 2)[1])
+            frontmatter_name = frontmatter.get("name") if isinstance(frontmatter, dict) else None
+        except yaml.YAMLError:
+            frontmatter_name = None
+    if frontmatter_name is not None and frontmatter_name != skill["id"]:
+        error(skill_md + ": frontmatter name '" + str(frontmatter_name) + "' does not match catalog id " + skill["id"])
+
+# --- 3a. An overview skill, when the catalog declares one, routes to every other skill ---
+print("==> Checking overview skill routing")
+overview = overview_skill(catalog)
+if overview is None:
+    print("  OK: catalog.yaml declares no overview skill; skills trigger directly")
+else:
+    overview_md = overview["path"] + "/SKILL.md"
+    if os.path.isfile(overview_md):
+        overview_content = open(overview_md, encoding="utf-8").read()
+        for skill in catalog["skills"]:
+            if skill is overview:
+                continue
+            if "`" + skill["id"] + "`" not in overview_content:
+                error(overview_md + " does not route to catalogued skill '" + skill["id"] + "'")
+        print("  OK: " + overview_md + " references every other catalogued skill")
+
+# --- 3b. Every catalogued skill has an evaluation runbook ---
+print("==> Checking evaluation runbooks")
+for skill in catalog["skills"]:
+    runbook = os.path.join("evals", skill["id"] + ".md")
+    if not os.path.isfile(runbook):
+        error("missing evaluation runbook " + runbook)
+    else:
+        print("  OK: " + runbook)
+
+# --- 3c. Generated files are up to date with catalog.yaml ---
+print("==> Checking generated catalog files")
+try:
+    for rel_path in stale_files("."):
+        error(rel_path + " is out of date with catalog.yaml; run `task catalog` to regenerate it")
+except ValueError as e:
+    error("cannot render catalog files: " + str(e))
 
 # --- 4. Validate SKILL.md required sections ---
 print("==> Validating SKILL.md required sections")
@@ -154,8 +219,14 @@ manifests = [
     ".claude-plugin/marketplace.json",
     ".github/plugin/plugin.json",
     ".github/plugin/marketplace.json",
+    ".codex-plugin/plugin.json",
+    ".cursor-plugin/plugin.json",
+    ".cursor-plugin/marketplace.json",
     "gemini-extension.json",
 ]
+codex_marketplace = ".agents/plugins/marketplace.json"
+skills_index = "skills.sh.json"
+loaded_manifests = {}
 
 
 def check_fields(data, required, filename):
@@ -203,15 +274,62 @@ def check_gemini_extension(filename):
 for f in manifests:
     try:
         if "marketplace" in f:
-            check_marketplace(f)
+            loaded_manifests[f] = check_marketplace(f)
         elif "gemini" in f:
-            check_gemini_extension(f)
+            loaded_manifests[f] = check_gemini_extension(f)
         else:
-            check_plugin(f)
+            loaded_manifests[f] = check_plugin(f)
     except FileNotFoundError:
         error("missing " + f)
     except json.JSONDecodeError as e:
         error("invalid JSON in " + f + ": " + str(e))
+
+try:
+    codex_data = json.load(open(codex_marketplace))
+    codex_errors = validate_codex_marketplace(codex_data, codex_marketplace)
+    for message in codex_errors:
+        error(message)
+    if not codex_errors:
+        print("  OK: " + codex_marketplace)
+        loaded_manifests[codex_marketplace] = codex_data
+except FileNotFoundError:
+    error("missing " + codex_marketplace)
+except json.JSONDecodeError as e:
+    error("invalid JSON in " + codex_marketplace + ": " + str(e))
+
+# --- 5a. All plugin manifests must declare the catalog description and version ---
+print("==> Checking manifest description consistency")
+description_errors = validate_descriptions(loaded_manifests, catalog["description"])
+for message in description_errors:
+    error(message)
+if not description_errors:
+    print("  OK: all manifest descriptions match catalog.yaml")
+
+print("==> Checking manifest version consistency")
+version_errors = validate_versions(loaded_manifests)
+for location, version in sorted(collect_versions(loaded_manifests).items()):
+    if version != catalog["version"]:
+        version_errors.append(
+            location + "=" + version + " does not match catalog distribution version " + catalog["version"]
+        )
+for message in version_errors:
+    error(message)
+if not version_errors:
+    print("  OK: all manifests match catalog distribution version " + catalog["version"])
+
+# --- 5c. Validate the skills.sh index against the catalog ---
+print("==> Validating " + skills_index)
+try:
+    index_data = json.load(open(skills_index))
+    index_errors = validate_skills_index(index_data, [skill["id"] for skill in catalog["skills"]])
+    for message in index_errors:
+        error(message)
+    if not index_errors:
+        print("  OK: " + skills_index + " lists every catalog skill exactly once")
+except FileNotFoundError:
+    error("missing " + skills_index)
+except json.JSONDecodeError as e:
+    error("invalid JSON in " + skills_index + ": " + str(e))
 
 # --- 5b. Validate skill ownership and delegation semantics ---
 print("==> Validating skill ownership and delegation")
@@ -314,6 +432,34 @@ for skill in catalog["skills"]:
                 )
             else:
                 print("  OK: " + os.path.join(path, rel_path))
+
+# --- 9. Check Compose YAML assets for unsafe defaults ---
+print("==> Checking Compose asset hygiene")
+compose_errors = validate_compose_assets(".")
+for message in compose_errors:
+    error(message)
+if not compose_errors:
+    print("  OK: Compose assets use interpolated credentials, scoped datastore ports, tagged images, and no Docker socket mounts")
+
+# --- 10. Check repository discovery, ownership, and skill-size invariants ---
+print("==> Checking repository hygiene")
+hygiene_errors = [
+    *validate_discovery_links("."),
+    *validate_codeowners(".", catalog),
+    *validate_skill_line_limits(".", catalog),
+]
+for message in hygiene_errors:
+    error(message)
+if not hygiene_errors:
+    print("  OK: discovery links, specific CODEOWNERS rules, and SKILL.md line limits are valid")
+
+# --- 11. Check all canonical skill content for deterministic risks ---
+print("==> Checking skill content risks")
+content_risk_errors = validate_content_risk(".")
+for message in content_risk_errors:
+    error(message)
+if not content_risk_errors:
+    print("  OK: skill files pass encoding, secret, command, URL, symlink, mode, and size checks")
 
 # --- Summary ---
 if errors:
